@@ -31,6 +31,9 @@ export interface EvidenceDocument {
   status: EvidenceStatus;
   issueNotes?: string;
   extractedData?: Record<string, any>;
+  previewUrl?: string;
+  fileType?: string;
+  uploadedAt?: string;
 }
 
 export interface EvidenceRule {
@@ -110,6 +113,11 @@ export interface RequirementRule {
   name: string;
   description: string;
   requiredEvidenceIds: string[];
+  statutoryThreshold?: {
+    label: string;
+    value: string | number;
+    type: 'min_gpa' | 'max_income' | 'min_burden_percent' | 'custom';
+  };
   evaluate: (data: Record<string, any>, evidenceMap: Record<string, EvidenceDocument>) => RequirementEvaluation;
 }
 
@@ -169,13 +177,39 @@ export interface ReviewerCase {
   status: 'pending' | 'resolved';
 }
 
+export interface ApplicationHistoryRecord {
+  id: string;
+  submittedAt: string;
+  serviceId: ServiceId;
+  serviceName: string;
+  applicantName: string;
+  applicantEmail: string;
+  finalOutcome: FinalOutcome;
+  establishedCount: number;
+  totalConditions: number;
+  summary: string;
+}
+
+export interface SystemAuditLogEntry {
+  id: string;
+  timestamp: string;
+  actor: string;
+  actorRole: 'Citizen Applicant' | 'Senior Reviewer' | 'Program Administrator' | 'System Engine';
+  action: string;
+  target: string;
+  hash: string;
+}
+
 export interface ApplicationState {
   currentStep: FlowStep;
-  activeView: 'applicant' | 'reviewer';
+  activeView: 'applicant' | 'reviewer' | 'admin';
   selectedService: ServiceConfig | null;
   applicantData: ApplicantData;
   evidenceState: EvidenceState;
   assessmentResult: AssessmentResult | null;
   selectedCaseId?: string;
   reviewerCases: ReviewerCase[];
+  applicationHistory: ApplicationHistoryRecord[];
+  systemAuditLogs: SystemAuditLogEntry[];
+  allServices: ServiceConfig[];
 }

@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   UserCheck,
   ChevronRight,
+  Sliders,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -30,6 +31,11 @@ export function Landing() {
 
   const handleOpenReviewer = () => {
     dispatch({ type: 'SET_ACTIVE_VIEW', payload: 'reviewer' });
+    navigate('/apply');
+  };
+
+  const handleOpenAdmin = () => {
+    dispatch({ type: 'SET_ACTIVE_VIEW', payload: 'admin' });
     navigate('/apply');
   };
 
@@ -52,7 +58,7 @@ export function Landing() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Button
               variant="secondary"
               size="sm"
@@ -60,7 +66,16 @@ export function Landing() {
               className="text-xs font-medium"
             >
               <UserCheck className="w-3.5 h-3.5" />
-              Reviewer Workspace
+              <span className="hidden sm:inline">Reviewer Workspace</span>
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleOpenAdmin}
+              className="text-xs font-medium"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Admin</span>
             </Button>
             <Button
               variant="primary"
@@ -113,7 +128,7 @@ export function Landing() {
             ClearGov turns bureaucratic public-service determinations into transparent, verified decisions. See exactly what has been established, what cannot yet be established, and what direct next action to take.
           </motion.p>
 
-          {/* Primary CTA Buttons */}
+          {/* Primary CTA Buttons for All 3 Experiences */}
           <motion.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
@@ -129,7 +144,7 @@ export function Landing() {
               }}
               className="text-sm px-6 py-3 font-semibold"
             >
-              Choose a Service & Apply
+              Applicant Journey
               <ArrowRight className="w-4 h-4" />
             </Button>
             <Button
@@ -139,11 +154,20 @@ export function Landing() {
               className="text-sm px-6 py-3 font-semibold"
             >
               <UserCheck className="w-4 h-4" />
-              Open Reviewer Workspace
+              Reviewer Workspace
+            </Button>
+            <Button
+              variant="secondary"
+              size="lg"
+              onClick={handleOpenAdmin}
+              className="text-sm px-6 py-3 font-semibold"
+            >
+              <Sliders className="w-4 h-4" />
+              Admin Console
             </Button>
           </motion.div>
 
-          {/* The Core Visual Chain (Per User Spec: Information → Evidence → Assessment → Explanation → Decision → Next Action) */}
+          {/* The Core Visual Chain */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}

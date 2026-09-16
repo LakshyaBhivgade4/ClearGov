@@ -11,16 +11,21 @@ import {
   Info,
   ArrowRight,
   ShieldCheck,
+  Eye,
+  Link2,
 } from 'lucide-react';
 import { useApplication } from '@/context/ApplicationContext';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { FileUpload } from '@/components/ui/FileUpload';
+import { DocumentViewerModal } from '@/components/ui/DocumentViewerModal';
 import { validateEvidence, createDefaultDocument } from '@/engine/evidence';
 import { EvidenceStatus, EvidenceRule, EvidenceDocument } from '@/types';
 
 export function Evidence() {
   const { state, dispatch } = useApplication();
   const service = state.selectedService;
+  const [inspectingDoc, setInspectingDoc] = useState<EvidenceDocument | null>(null);
 
   if (!service) {
     return (
@@ -35,15 +40,7 @@ export function Evidence() {
 
   const validation = validateEvidence(service, state.evidenceState);
 
-  const handleStatusChange = (ruleId: string, status: EvidenceStatus) => {
-    dispatch({
-      type: 'SET_EVIDENCE_STATUS',
-      payload: { ruleId, status },
-    });
-  };
-
-  const handleAttachDoc = (rule: EvidenceRule) => {
-    const doc = createDefaultDocument(rule, 'verified');
+  const handleDocumentUploaded = (doc: EvidenceDocument) => {
     dispatch({
       type: 'ATTACH_EVIDENCE_DOC',
       payload: doc,
@@ -55,6 +52,20 @@ export function Evidence() {
       type: 'REMOVE_EVIDENCE_DOC',
       payload: ruleId,
     });
+  };
+
+  const handleStatusOverride = (status: EvidenceStatus, notes?: string) => {
+    if (!inspectingDoc) return;
+    dispatch({
+      type: 'SET_EVIDENCE_STATUS',
+      payload: { ruleId: inspectingDoc.ruleId, status, issueNotes: notes },
+    });
+    setInspectingDoc(prev => (prev ? { ...prev, status, issueNotes: notes || prev.issueNotes } : null));
+  };
+
+  // Find linked requirement for each evidence rule
+  const getLinkedRequirements = (ruleId: string) => {
+    return service.requirements.filter(req => req.requiredEvidenceIds.includes(ruleId));
   };
 
   return (
@@ -70,42 +81,45 @@ export function Evidence() {
           <Badge variant="neutral" size="sm">
             Step 3 of 7
           </Badge>
-          <span className="text-2xs font-mono text-slate-400">Evidence Adjudication Layer</span>
+          <span className="text-2xs font-mono text-slate-400">
+            Requirement-to-Evidence Verification Layer
+          </span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-          Supporting Evidence & Documentation
+          Supporting Evidence & Documents
         </h1>
-        <p className="text-sm text-slate-600">
-          ClearGov evaluates the legal credibility, readability, and consistency of every submitted document. Evidence directly influences assessment findings.
+        <p className="text-sm text-slate-600 leading-relaxed">
+          ClearGov verifies document integrity, resolution, and consistency. Drag and drop real PDF, JPG, or PNG files, or inspect verified credentials.
         </p>
       </motion.div>
 
       {/* Validation Summary Bar */}
       <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-4 text-xs">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 font-medium text-slate-800">
+          <div className="flex items-center gap-1.5 font-bold text-slate-800 font-mono text-2xs uppercase">
             <ShieldCheck className="w-4 h-4 text-slate-600" />
-            <span>Audit Status:</span>
+            <span>Document Audit:</span>
           </div>
           <Badge variant={validation.complete ? 'verified' : 'urgent'} size="sm">
-            {validation.verifiedCount} / {validation.totalRequired} required verified
+            {validation.verifiedCount} / {validation.totalRequired} required authenticated
           </Badge>
           {validation.hasIssues && (
-            <span className="text-amber-800 font-medium bg-amber-100/70 px-2 py-0.5 rounded text-2xs">
-              {validation.unreadableCount + validation.incompleteCount + validation.contradictoryCount} issue(s) detected
+            <span className="text-amber-800 font-medium bg-amber-100/70 px-2 py-0.5 rounded text-2xs font-mono">
+              {validation.unreadableCount + validation.incompleteCount + validation.contradictoryCount} issue(s) flagged
             </span>
           )}
         </div>
         <span className="text-2xs text-slate-500 font-mono">
-          Accepted: PDF, OCR-Ready 300 DPI Scans
+          Formats: PDF, JPG, PNG (Max 15MB)
         </span>
       </div>
 
-      {/* Evidence Rules Checklist */}
-      <div className="space-y-4">
+      {/* Evidence Rules Checklist with Requirement Mapping */}
+      <div className="space-y-5">
         {service.evidenceRules.map((rule, idx) => {
           const doc: EvidenceDocument | undefined = state.evidenceState[rule.id];
           const hasDoc = !!doc && doc.status !== 'missing' && !!doc.fileName;
+          const linkedReqs = getLinkedRequirements(rule.id);
 
           return (
             <motion.div
@@ -113,25 +127,16 @@ export function Evidence() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: idx * 0.05 }}
-              className={`p-5 rounded-xl border transition-all ${
-                hasDoc
-                  ? doc.status === 'verified'
-                    ? 'border-emerald-200 bg-white shadow-2xs'
-                    : doc.status === 'contradictory'
-                    ? 'border-purple-200 bg-purple-50/30'
-                    : 'border-amber-200 bg-amber-50/30'
-                  : rule.required
-                  ? 'border-slate-200 bg-white'
-                  : 'border-slate-200/80 bg-slate-50/40'
-              }`}
+              className="p-5 rounded-2xl border border-slate-200 bg-white shadow-2xs space-y-4"
             >
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                <div className="space-y-1.5 flex-1">
+              {/* Evidence Rule Header */}
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="space-y-1 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-slate-900">{rule.name}</span>
                     {rule.required ? (
-                      <span className="text-2xs font-mono uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 font-semibold border border-rose-200">
-                        Mandatory
+                      <span className="text-2xs font-mono uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 font-bold border border-rose-200">
+                        Required
                       </span>
                     ) : (
                       <span className="text-2xs font-mono uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">
@@ -140,69 +145,68 @@ export function Evidence() {
                     )}
                   </div>
 
-                  <p className="text-xs text-slate-600">{rule.description}</p>
-                  <p className="text-2xs text-slate-400 font-mono">
-                    <strong>Statutory Purpose:</strong> {rule.reason}
-                  </p>
+                  <p className="text-xs text-slate-600 leading-relaxed">{rule.description}</p>
                 </div>
 
-                {/* Document Status / Action */}
-                <div className="shrink-0 self-start sm:self-center text-right space-y-2">
-                  {hasDoc ? (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2 justify-end">
-                        <span className="text-xs font-mono font-medium text-slate-700">
-                          {doc.fileName}
-                        </span>
-                        <Badge variant={doc.status} size="sm">
-                          {doc.status}
-                        </Badge>
-                      </div>
+                {hasDoc && (
+                  <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-center">
+                    <Badge variant={doc.status} size="sm">
+                      {doc.status}
+                    </Badge>
+                  </div>
+                )}
+              </div>
 
-                      {/* Interactive Document State Selector (Hackathon Simulator) */}
-                      <div className="flex items-center gap-1.5 text-2xs justify-end">
-                        <span className="text-slate-400 font-mono">Simulate state:</span>
-                        <select
-                          value={doc.status}
-                          onChange={e => handleStatusChange(rule.id, e.target.value as EvidenceStatus)}
-                          className="text-2xs font-mono rounded border border-slate-300 py-0.5 px-1.5 bg-white text-slate-800"
-                        >
-                          <option value="verified">Verified</option>
-                          <option value="unreadable">Unreadable</option>
-                          <option value="incomplete">Incomplete</option>
-                          <option value="contradictory">Contradictory</option>
-                        </select>
-                        <button
-                          onClick={() => handleRemoveDoc(rule.id)}
-                          className="p-1 rounded text-slate-400 hover:text-rose-600 transition-colors"
-                          title="Remove document"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => handleAttachDoc(rule)}
-                      className="text-xs font-medium"
+              {/* Requirement-to-Evidence Mapping Callout */}
+              <div className="flex flex-wrap items-center gap-2 text-2xs p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                <div className="flex items-center gap-1 text-slate-500 font-mono font-semibold">
+                  <Link2 className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Substantiates Statutory Requirement:</span>
+                </div>
+                {linkedReqs.length > 0 ? (
+                  linkedReqs.map(r => (
+                    <span
+                      key={r.id}
+                      className="font-semibold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200"
                     >
-                      <FileUp className="w-3.5 h-3.5" />
-                      Attach Document
-                    </Button>
-                  )}
-                </div>
+                      {r.name}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-slate-400">General Program Verification</span>
+                )}
+              </div>
+
+              {/* Functional File Upload / Attached View */}
+              <div className="pt-1">
+                <FileUpload
+                  rule={rule}
+                  currentDoc={doc}
+                  onFileUploaded={handleDocumentUploaded}
+                  onRemoveDoc={() => handleRemoveDoc(rule.id)}
+                  onInspectDoc={d => setInspectingDoc(d)}
+                />
               </div>
 
               {/* Inspector Flag / Notes if unreadable or contradictory */}
               {hasDoc && doc.issueNotes && (
-                <div className="mt-3 p-2.5 rounded bg-amber-50 border border-amber-200/80 text-xs text-amber-900 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="font-semibold font-mono text-2xs uppercase">Automated Document Inspection:</strong>{' '}
-                    <span>{doc.issueNotes}</span>
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="font-semibold font-mono text-2xs uppercase block">
+                        Automated Integrity Check Flag:
+                      </strong>
+                      <span className="leading-relaxed">{doc.issueNotes}</span>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setInspectingDoc(doc)}
+                    className="text-2xs font-bold text-amber-900 underline underline-offset-2 shrink-0 self-center"
+                  >
+                    View in Inspector
+                  </button>
                 </div>
               )}
             </motion.div>
@@ -219,6 +223,7 @@ export function Evidence() {
         >
           Back to Information
         </Button>
+
         <Button
           size="md"
           onClick={() => dispatch({ type: 'SET_STEP', payload: 'review' })}
@@ -227,6 +232,13 @@ export function Evidence() {
           <ArrowRight className="w-4 h-4" />
         </Button>
       </div>
+
+      {/* Document Inspector Modal */}
+      <DocumentViewerModal
+        doc={inspectingDoc}
+        onClose={() => setInspectingDoc(null)}
+        onUpdateStatus={handleStatusOverride}
+      />
     </div>
   );
 }

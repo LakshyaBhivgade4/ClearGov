@@ -10,6 +10,7 @@ import { Assessment } from '@/pages/Assessment';
 import { Decision } from '@/pages/Decision';
 import { NextAction } from '@/pages/NextAction';
 import { ReviewerWorkspace } from '@/pages/ReviewerWorkspace';
+import { AdminWorkspace } from '@/pages/AdminWorkspace';
 
 export function AppShell() {
   const { state } = useApplication();
@@ -18,6 +19,14 @@ export function AppShell() {
     return (
       <AppLayout>
         <ReviewerWorkspace />
+      </AppLayout>
+    );
+  }
+
+  if (state.activeView === 'admin') {
+    return (
+      <AppLayout>
+        <AdminWorkspace />
       </AppLayout>
     );
   }

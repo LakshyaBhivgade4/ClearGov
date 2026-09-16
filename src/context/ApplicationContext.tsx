@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, ReactNode, useEffect } from 'react';
 import {
   ApplicationState,
   FlowStep,
@@ -11,6 +11,8 @@ import {
   ReviewerCase,
   ReviewerDecision,
   FinalOutcome,
+  ApplicationHistoryRecord,
+  SystemAuditLogEntry,
 } from '@/types';
 import { runAssessment } from '@/engine/assess';
 import { services, getServiceById } from '@/data/services';
@@ -19,12 +21,12 @@ import { demoJourneys, generateInitialReviewerCases } from '@/data/seedApplicant
 type Action =
   | { type: 'SELECT_SERVICE'; payload: ServiceConfig }
   | { type: 'SET_STEP'; payload: FlowStep }
-  | { type: 'SET_ACTIVE_VIEW'; payload: 'applicant' | 'reviewer' }
+  | { type: 'SET_ACTIVE_VIEW'; payload: 'applicant' | 'reviewer' | 'admin' }
   | { type: 'UPDATE_APPLICANT_DATA'; payload: Record<string, any> }
   | { type: 'SET_EVIDENCE_STATUS'; payload: { ruleId: string; status: EvidenceStatus; issueNotes?: string } }
   | { type: 'ATTACH_EVIDENCE_DOC'; payload: EvidenceDocument }
   | { type: 'REMOVE_EVIDENCE_DOC'; payload: string }
-  | { type: 'LOAD_DEMO_JOURNEY'; payload: string } // journey id
+  | { type: 'LOAD_DEMO_JOURNEY'; payload: string }
   | { type: 'RUN_ASSESSMENT' }
   | { type: 'SELECT_REVIEWER_CASE'; payload: string }
   | {
@@ -39,8 +41,56 @@ type Action =
     }
   | { type: 'RESET' };
 
-const defaultService = services[0];
 const initialDemo = demoJourneys[0];
+const defaultService = services[0];
+
+const initialHistory: ApplicationHistoryRecord[] = [
+  {
+    id: 'docket-mc-2026',
+    submittedAt: 'Today, 09:12 AM',
+    serviceId: 'scholarship',
+    serviceName: 'Merit & Need Scholarship',
+    applicantName: 'Maria Chen',
+    applicantEmail: 'maria.chen@state.edu',
+    finalOutcome: 'SUFFICIENT EVIDENCE',
+    establishedCount: 3,
+    totalConditions: 3,
+    summary: 'Cumulative GPA of 3.82 and verified adjusted gross income of $38,000 satisfied all statutory merit & need standards.',
+  },
+  {
+    id: 'docket-mv-2026',
+    submittedAt: 'Yesterday, 03:40 PM',
+    serviceId: 'housing',
+    serviceName: 'Housing Assistance',
+    applicantName: 'Marcus Vance',
+    applicantEmail: 'marcus.vance@example.com',
+    finalOutcome: 'CONDITION NOT SATISFIED',
+    establishedCount: 1,
+    totalConditions: 2,
+    summary: 'Household income of $54,000/yr exceeds statutory 60% Area Median Income cutoff of $38,500.',
+  },
+];
+
+const initialAuditLogs: SystemAuditLogEntry[] = [
+  {
+    id: 'log-01',
+    timestamp: 'Today 11:32 AM',
+    actor: 'Sarah Jenkins',
+    actorRole: 'Senior Reviewer',
+    action: 'Confirmed Requirement Satisfied (Foreign Currency conversion verified)',
+    target: 'Case #case-al-03 (Amina Al-Mansoor)',
+    hash: 'sha256:8f4c...91b2',
+  },
+  {
+    id: 'log-02',
+    timestamp: 'Today 11:28 AM',
+    actor: 'System Engine',
+    actorRole: 'System Engine',
+    action: 'Automated Evaluation: Identified blurry document (72 DPI scan)',
+    target: 'Case #case-er-02 (Elena Rostova)',
+    hash: 'sha256:1a7d...44c8',
+  },
+];
 
 const initialState: ApplicationState = {
   currentStep: 'service',
@@ -51,6 +101,9 @@ const initialState: ApplicationState = {
   assessmentResult: null,
   selectedCaseId: 'case-dm-01',
   reviewerCases: generateInitialReviewerCases(),
+  applicationHistory: initialHistory,
+  systemAuditLogs: initialAuditLogs,
+  allServices: services,
 };
 
 function reducer(state: ApplicationState, action: Action): ApplicationState {
@@ -79,9 +132,7 @@ function reducer(state: ApplicationState, action: Action): ApplicationState {
 
     case 'SET_EVIDENCE_STATUS': {
       const existing = state.evidenceState[action.payload.ruleId];
-      if (!existing) {
-        return state;
-      }
+      if (!existing) return state;
       return {
         ...state,
         evidenceState: {
@@ -124,16 +175,43 @@ function reducer(state: ApplicationState, action: Action): ApplicationState {
         applicantData: { ...demo.data },
         evidenceState: { ...demo.evidence },
         assessmentResult: assessment,
-        currentStep: 'assessment', // take user straight to assessment/decision
+        currentStep: 'assessment',
       };
     }
 
     case 'RUN_ASSESSMENT': {
       if (!state.selectedService) return state;
       const result = runAssessment(state.selectedService, state.applicantData, state.evidenceState);
+
+      // Record to history
+      const newHistoryItem: ApplicationHistoryRecord = {
+        id: `docket-${Date.now().toString().slice(-6)}`,
+        submittedAt: 'Just now',
+        serviceId: state.selectedService.id,
+        serviceName: state.selectedService.name,
+        applicantName: state.applicantData.fullName || 'Anonymous Applicant',
+        applicantEmail: state.applicantData.email || 'applicant@example.com',
+        finalOutcome: result.outcome,
+        establishedCount: result.establishedCount,
+        totalConditions: result.requirements.length,
+        summary: result.executiveSummary,
+      };
+
+      const newAuditLog: SystemAuditLogEntry = {
+        id: `log-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        actor: state.applicantData.fullName || 'Citizen Applicant',
+        actorRole: 'Citizen Applicant',
+        action: `Filed application for ${state.selectedService.name} → Result: ${result.outcome}`,
+        target: newHistoryItem.id,
+        hash: `sha256:${Math.random().toString(16).substring(2, 10)}...${Math.random().toString(16).substring(2, 6)}`,
+      };
+
       return {
         ...state,
         assessmentResult: result,
+        applicationHistory: [newHistoryItem, ...state.applicationHistory],
+        systemAuditLogs: [newAuditLog, ...state.systemAuditLogs],
       };
     }
 
@@ -174,9 +252,20 @@ function reducer(state: ApplicationState, action: Action): ApplicationState {
         };
       });
 
+      const auditLog: SystemAuditLogEntry = {
+        id: `log-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        actor: reviewerName,
+        actorRole: 'Senior Reviewer',
+        action: `Adjudicated requirement to "${resultingOutcome}"`,
+        target: `Case #${caseId}`,
+        hash: `sha256:${Math.random().toString(16).substring(2, 10)}...${Math.random().toString(16).substring(2, 6)}`,
+      };
+
       return {
         ...state,
         reviewerCases: updatedCases,
+        systemAuditLogs: [auditLog, ...state.systemAuditLogs],
       };
     }
 
@@ -204,6 +293,7 @@ const ApplicationContext = createContext<ApplicationContextValue | null>(null);
 
 export function ApplicationProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+
   return (
     <ApplicationContext.Provider value={{ state, dispatch }}>
       {children}

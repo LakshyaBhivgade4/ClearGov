@@ -7,6 +7,10 @@
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Vercel Deployment](https://img.shields.io/badge/Live%20Demo-cleargov--chi.vercel.app-000000?logo=vercel&logoColor=white)](https://cleargov-chi.vercel.app)
+
+**Live Production URL:** [https://cleargov-chi.vercel.app](https://cleargov-chi.vercel.app)
+
 
 ---
 
